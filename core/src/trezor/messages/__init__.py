@@ -1,19 +1,18 @@
+from trezor.enums import MessageType
+from trezorutils import protobuf_type_for_name
+
+if __debug__:
+    from trezor import log
+
 if False:
-    import protobuf
-    from typing import Type
+    from protobuf import MessageType as MessageType_  # noqa: F401
+
+    MessageClass = type[MessageType_]
 
 
-def get_type(wire_type: int) -> Type[protobuf.MessageType]:
-    """Get message class for handling given wire_type."""
-    from trezor.messages import MessageType
-
-    for msg_name in dir(MessageType):
-        # walk the list of symbols in MessageType
-        if getattr(MessageType, msg_name) == wire_type:
-            # import submodule/class of the same name
-            module = __import__(
-                "trezor.messages.%s" % msg_name, None, None, (msg_name,), 0
-            )
-            return getattr(module, msg_name)  # type: ignore
-
-    raise KeyError
+def __getattr__(name):
+    try:
+        return protobuf_type_for_name(name)
+    except ValueError:
+        # TODO: Import all enums from `trezor.enums` directly and remove this.
+        return __import__("trezor.enums.%s" % name, None, None, (name,), 0)
