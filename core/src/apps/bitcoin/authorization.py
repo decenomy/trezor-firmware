@@ -1,17 +1,17 @@
 from micropython import const
 
 from trezor import wire
-from trezor.messages.AuthorizeCoinJoin import AuthorizeCoinJoin
+from trezor.messages import AuthorizeCoinJoin
 
 from apps.common import authorization
 
 from .common import BIP32_WALLET_DEPTH
 
 if False:
-    import protobuf
-    from trezor.messages.GetOwnershipProof import GetOwnershipProof
-    from trezor.messages.SignTx import SignTx
-    from trezor.messages.TxInput import TxInput
+    from typing import Iterable
+    from trezor.messages import GetOwnershipProof
+    from trezor.messages import SignTx
+    from trezor.messages import TxInput
 
     from apps.common.coininfo import CoinInfo
 
