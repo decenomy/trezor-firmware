@@ -109,11 +109,11 @@ unsafe extern "C" fn msg_obj_attr(self_in: Obj, attr: ffi::qstr, dest: *mut Obj)
         } else {
             let value = dest.offset(1).read();
             if value == Obj::const_null() {
-                // Delete atribute.
-                this.as_mut().map.delete(attr);
+                // Delete attribute.
+                Gc::as_mut(&mut this).map.delete(attr);
             } else {
                 // Store attribute.
-                this.as_mut().map.set(attr, value);
+                Gc::as_mut(&mut this).map.set(attr, value);
             }
             // TODO: Fail if attr does not exist.
             dest.write(Obj::const_null());

@@ -43,7 +43,7 @@ pub extern "C" fn protobuf_decode(buf: Obj, msg_def: Obj, enable_experimental: O
         if !enable_experimental && def.msg().is_experimental {
             // Refuse to decode message defs marked as experimental if not
             // explicitly allowed. Messages can also mark certain fields as
-            // expermental (not the whole message). This is enforced during the
+            // experimental (not the whole message). This is enforced during the
             // decoding.
             return Err(Error::InvalidType);
         }
@@ -71,8 +71,8 @@ impl Decoder {
         msg: &MsgDef,
     ) -> Result<Obj, Error> {
         let mut dict = self.empty_message(msg);
-        // SAFETY: We assume that `obj` is not alised here.
-        let map = unsafe { dict.as_mut() }.map_mut();
+        // SAFETY: We assume that `obj` is not aliased here.
+        let map = unsafe { Gc::as_mut(&mut dict) }.map_mut();
         self.decode_fields_into(stream, msg, map)?;
         self.decode_defaults_into(msg, map)?;
         self.assign_required_into(msg, map)?;
@@ -83,8 +83,8 @@ impl Decoder {
     /// default and required fields correctly.
     pub fn message_from_values(&self, values: &Map, msg: &MsgDef) -> Result<Obj, Error> {
         let mut obj = self.empty_message(msg);
-        // SAFETY: We assume that `obj` is not alised here.
-        let map = unsafe { obj.as_mut() }.map_mut();
+        // SAFETY: We assume that `obj` is not aliased here.
+        let map = unsafe { Gc::as_mut(&mut obj) }.map_mut();
         for elem in values.elems() {
             map.set(elem.key, elem.value);
         }
@@ -124,7 +124,7 @@ impl Decoder {
                         if let Ok(obj) = map.get(field_name) {
                             let mut list = Gc::<List>::try_from(obj)?;
                             // SAFETY: We assume that `list` is not aliased here.
-                            unsafe { list.as_mut() }.append(field_value);
+                            unsafe { Gc::as_mut(&mut list) }.append(field_value);
                         } else {
                             let list = List::alloc(&[field_value]);
                             map.set(field_name, list);

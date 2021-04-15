@@ -653,8 +653,6 @@ class Descriptor:
             flags_and_wire_id = wire_id
             if is_experimental:
                 flags_and_wire_id |= 0x8000
-            if is_experimental:
-                print(flags_and_wire_id)
 
             for field in sorted(msg.field, key=lambda f: f.number):
                 if not include_deprecated and field.options.deprecated:
