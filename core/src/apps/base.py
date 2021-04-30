@@ -1,8 +1,13 @@
 import storage.cache
 import storage.device
-from trezor import config, utils, wire, workflow
-from trezor.messages import MessageType
-from trezor.messages import Success
+import storage.recovery
+import storage.sd_salt
+from storage import cache
+from trezor import config, sdcard, ui, utils, wire, workflow
+from trezor.messages import (
+    MessageType,
+    Success,
+)
 
 from . import workflow_handlers
 

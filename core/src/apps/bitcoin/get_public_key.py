@@ -1,7 +1,5 @@
 from trezor import wire
-from trezor.messages import InputScriptType
-from trezor.messages import HDNodeType
-from trezor.messages import PublicKey
+from trezor.messages import HDNodeType, InputScriptType, PublicKey
 
 from apps.common import coininfo, paths
 from apps.common.keychain import get_keychain
