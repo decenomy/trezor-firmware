@@ -107,7 +107,8 @@ def _wrap_protobuf_load(
     try:
         return protobuf_decode(reader.buffer, expected_type, experimental_enabled)
     except Exception as e:
-        print(e)
+        if __debug__:
+            log.exception(__name__, e)
         if e.args:
             raise DataError("Failed to decode message: {}".format(e.args[0]))
         else:

@@ -70,13 +70,13 @@ impl Decoder {
         stream: &mut InputStream,
         msg: &MsgDef,
     ) -> Result<Obj, Error> {
-        let mut dict = self.empty_message(msg);
+        let mut obj = self.empty_message(msg);
         // SAFETY: We assume that `obj` is not aliased here.
-        let map = unsafe { Gc::as_mut(&mut dict) }.map_mut();
+        let map = unsafe { Gc::as_mut(&mut obj) }.map_mut();
         self.decode_fields_into(stream, msg, map)?;
         self.decode_defaults_into(msg, map)?;
         self.assign_required_into(msg, map)?;
-        Ok(dict.into())
+        Ok(obj.into())
     }
 
     /// Create a new message instance and fill it from `values`, handling the
@@ -123,7 +123,9 @@ impl Decoder {
                         // this field's value and assign it.
                         if let Ok(obj) = map.get(field_name) {
                             let mut list = Gc::<List>::try_from(obj)?;
-                            // SAFETY: We assume that `list` is not aliased here.
+                            // SAFETY: We assume that `list` is not aliased here. This holds for
+                            // uses in `message_from_stream` and `message_from_values`, because we
+                            // start with an empty `Map` and fill with unique lists.
                             unsafe { Gc::as_mut(&mut list) }.append(field_value);
                         } else {
                             let list = List::alloc(&[field_value]);
@@ -155,15 +157,17 @@ impl Decoder {
         Ok(())
     }
 
-    /// Fill in the default values by decoding them from the default stream.
+    /// Fill in the default values by decoding them from the defaults stream.
     /// Only singular fields are allowed to have a default value, this is
     /// enforced in the blob compilation.
     pub fn decode_defaults_into(&self, msg: &MsgDef, map: &mut Map) -> Result<(), Error> {
         let stream = &mut InputStream::new(msg.defaults);
 
-        // Because we are sure that our field tags fit in one byte, and because this is
-        // a trusted stream, we encode the field tag directly as u8, without the
-        // primitive type.
+        // The format of the defaults stream is a sequence of records:
+        //  - one-byte field tag (without the primitive type).
+        //  - Protobuf-encoded default value.
+        // We need to look to the field descriptor to know how to interpret the value
+        // after the field tag.
         while let Ok(field_tag) = stream.read_byte() {
             let field = msg.field(field_tag).ok_or(Error::Missing)?;
             let field_name = Qstr::from(field.name);
