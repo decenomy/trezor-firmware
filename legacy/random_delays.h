@@ -17,8 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __RANDOM_DELYAS_H__
-#define __RANDOM_DELYAS_H__
+#ifndef __RANDOM_DELAYS_H__
+#define __RANDOM_DELAYS_H__
 
 void wait_random(void);
 #endif
