@@ -86,11 +86,12 @@ static void drbg_generate(uint8_t *buffer, size_t length) {
   chacha_drbg_generate(&drbg_ctx, buffer, length);
 }
 
+// WARNING: Returns a constant if the function's critical section is locked
 static uint32_t drbg_random8(void) {
   // Since the function is called both from an interrupt (rdi_handler,
   // wait_random) and the main thread (wait_random), we use a lock to
   // synchronise access to global variables
-  static volatile atomic_flag locked = {0};
+  static volatile atomic_flag locked = ATOMIC_FLAG_INIT;
 
   if (atomic_flag_test_and_set(&locked))
   // locked_old = locked; locked = true; locked_old
@@ -152,6 +153,8 @@ static void wait(uint32_t delay) {
 void random_delays_init() { drbg_init(); }
 
 void rdi_start(void) {
+  ensure(drbg_initialized, NULL);
+
   if (rdi_disabled == sectrue) {  // if rdi disabled
     refresh_session_delay = true;
     rdi_disabled = secfalse;
