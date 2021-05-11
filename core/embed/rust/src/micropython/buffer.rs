@@ -13,7 +13,7 @@ use super::ffi;
 /// In most cases, it is unsound to store `Buffer` values in a GC-unreachable
 /// location, such as static data.
 pub struct Buffer {
-    ptr: *const u8,
+    ptr: *mut u8,
     len: usize,
 }
 
@@ -61,6 +61,27 @@ impl AsRef<[u8]> for Buffer {
             //  - immutable for the whole lifetime of `&self`,
             //  - with at least `self.len` bytes.
             unsafe { slice::from_raw_parts(self.ptr, self.len) }
+        }
+    }
+}
+
+impl Buffer {
+    /// Convert to a mutable slice of bytes.
+    ///
+    /// # Safety
+    ///
+    /// This method is unsafe because the caller has to guarantee that the bytes
+    /// referenced by `self` are unique, without any other immutable or mutable
+    /// references.
+    pub unsafe fn as_mut(&mut self) -> &mut [u8] {
+        if self.ptr.is_null() {
+            // `ptr` can be null if len == 0.
+            &mut []
+        } else {
+            // SAFETY: We assume that `ptr` is pointing to memory:
+            //  - without any live references.
+            //  - of length `len` bytes.
+            unsafe { slice::from_raw_parts_mut(self.ptr, self.len) }
         }
     }
 }
