@@ -4,8 +4,7 @@ Initializes a new transaction.
 
 import gc
 
-from apps.monero import misc, signing
-from apps.monero.layout import confirms
+from apps.monero import layout, misc, signing
 from apps.monero.signing.state import State
 from apps.monero.xmr import crypto, monero
 
@@ -48,7 +47,7 @@ async def init_transaction(
     state.progress_cur = 0
 
     # Ask for confirmation
-    await confirms.require_confirm_transaction(
+    await layout.require_confirm_transaction(
         state.ctx, state, tsx_data, state.creds.network_type
     )
     state.creds.address = None
@@ -72,7 +71,7 @@ async def init_transaction(
     # Ensure change is correct
     _check_change(state, tsx_data.outputs)
 
-    # At least two outpus are required, this applies also for sweep txs
+    # At least two outputs are required, this applies also for sweep txs
     # where one fake output is added. See _check_change for more info
     if state.output_count < 2:
         raise signing.NotEnoughOutputsError("At least two outputs are required")

@@ -18,6 +18,7 @@
 import pytest
 
 from trezorlib import btc, messages
+from trezorlib.debuglink import message_filters
 from trezorlib.tools import parse_path
 
 S = messages.InputScriptType
@@ -190,6 +191,16 @@ VECTORS = (  # case name, coin_name, path, script_type, address, message, signat
         "206b1f8ba47ef9eaf87aa900e41ab1e97f67e8c09292faa4acf825228d074c4b774484046dcb1d9bbf0603045dbfb328c3e1b0c09c5ae133e89e604a67a1fc6cca",
         altcoin=True,
     ),
+    case(
+        "decred-empty",
+        "Decred",
+        "44h/42h/0h/0/0",
+        S.SPENDADDRESS,
+        "DsZtHtXHwvNR3nWf1PqfxrEdnRJisKEyzp1",
+        "",
+        "1fd2d57490b44a0361c7809768cad032d41ba1d4b7a297f935fc65ae05f71de7ea0c6c6fd265cc5154f1fa4acd7006b6a00ddd67fb7333c1594aff9120b3ba8024",
+        altcoin=True,
+    ),
 )
 
 
@@ -223,18 +234,20 @@ MESSAGE_LENGTHS = (
 @pytest.mark.parametrize("message", MESSAGE_LENGTHS)
 def test_signmessage_pagination(client, message):
     message_read = ""
-    message += "End."
 
     def input_flow():
         # collect screen contents into `message_read`.
         # Join lines that are separated by a single "-" string, space-separate lines otherwise.
         nonlocal message_read
 
-        yield
         # start assuming there was a word break; this avoids prepending space at start
         word_break = True
-        max_attempts = 100
-        while max_attempts:
+        page = 0
+        while True:
+            br = yield
+            assert br.page_number == page + 1
+            page = br.page_number
+
             layout = client.debug.wait_layout()
             for line in layout.lines[1:]:
                 if line == "-":
@@ -248,15 +261,11 @@ def test_signmessage_pagination(client, message):
                     # attach with space
                     message_read += " " + line
 
-            if not message_read.endswith("End."):
+            if page < br.pages:
                 client.debug.swipe_up()
             else:
                 client.debug.press_yes()
                 break
-
-            max_attempts -= 1
-
-        assert max_attempts > 0, "failed to scroll through message"
 
     with client:
         client.set_input_flow(input_flow)
@@ -272,13 +281,20 @@ def test_signmessage_pagination(client, message):
 
 @pytest.mark.skip_t1
 def test_signmessage_pagination_trailing_newline(client):
-    # This can currently only be tested by a human via the UI test diff:
     message = "THIS\nMUST\nNOT\nBE\nPAGINATED\n"
     # The trailing newline must not cause a new paginated screen to appear.
     # The UI must be a single dialog without pagination.
-    btc.sign_message(
-        client,
-        coin_name="Bitcoin",
-        n=parse_path("m/44h/0h/0h/0/0"),
-        message=message,
-    )
+    with client:
+        client.set_expected_responses(
+            [
+                # expect a ButtonRequest that does not have pagination set
+                message_filters.ButtonRequest(pages=None),
+                messages.MessageSignature,
+            ]
+        )
+        btc.sign_message(
+            client,
+            coin_name="Bitcoin",
+            n=parse_path("m/44h/0h/0h/0/0"),
+            message=message,
+        )

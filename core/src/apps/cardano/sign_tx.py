@@ -87,7 +87,7 @@ if False:
     from apps.common.cbor import CborSequence
     from apps.common.paths import PathSchema
 
-    CborizedTokenBundle = dict[bytes, dict[bytes, int]]
+    CborizedTokenBundle = cbor.OrderedMap[bytes, cbor.OrderedMap[bytes, int]]
     CborizedTxOutput = tuple[bytes, Union[int, tuple[int, CborizedTokenBundle]]]
     CborizedSignedTx = tuple[dict, dict, Optional[cbor.Raw]]
     TxHash = bytes
@@ -309,12 +309,19 @@ def _validate_certificates(
 
 
 def _validate_withdrawals(withdrawals: list[CardanoTxWithdrawalType]) -> None:
+    seen_withdrawals = set()
     for withdrawal in withdrawals:
         if not SCHEMA_STAKING_ANY_ACCOUNT.match(withdrawal.path):
             raise INVALID_WITHDRAWAL
 
         if not 0 <= withdrawal.amount < LOVELACE_MAX_SUPPLY:
             raise INVALID_WITHDRAWAL
+
+        path_tuple = tuple(withdrawal.path)
+        if path_tuple in seen_withdrawals:
+            raise wire.ProcessError("Duplicate withdrawals")
+        else:
+            seen_withdrawals.add(path_tuple)
 
 
 def _cborize_signed_tx(
@@ -421,11 +428,11 @@ def _cborize_output(
 def _cborize_token_bundle(
     token_bundle: list[CardanoAssetGroupType],
 ) -> CborizedTokenBundle:
-    result: CborizedTokenBundle = {}
+    result: CborizedTokenBundle = cbor.OrderedMap()
 
     for token_group in token_bundle:
         cborized_policy_id = bytes(token_group.policy_id)
-        cborized_token_group = result[cborized_policy_id] = {}
+        cborized_token_group = result[cborized_policy_id] = cbor.OrderedMap()
 
         for token in token_group.tokens:
             cborized_asset_name = bytes(token.asset_name_bytes)
@@ -446,8 +453,8 @@ def _cborize_withdrawals(
     withdrawals: list[CardanoTxWithdrawalType],
     protocol_magic: int,
     network_id: int,
-) -> dict[bytes, int]:
-    result = {}
+) -> cbor.OrderedMap[bytes, int]:
+    result: cbor.OrderedMap[bytes, int] = cbor.OrderedMap()
     for withdrawal in withdrawals:
         reward_address = derive_address_bytes(
             keychain,

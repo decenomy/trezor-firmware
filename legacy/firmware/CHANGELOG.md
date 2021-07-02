@@ -4,13 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## 1.10.1 [24th May 2021]
+## 1.10.2 [14th July 2021]
+
+### Removed
+- Removed support for Firo  [#1647]
+- Removed support for Hatch  [#1650]
+
+
+## 1.10.1 [9th June 2021]
 
 ### Added
 - Safety checks setting in T1.  [#1627]
 
+### Security
+- Fix incorrect empty string handling in BLAKE implementation used by Decred.
 
-## 1.10.0 [13rd May 2021]
+
+## 1.10.0 [12th May 2021]
 
 ### Added
 - Public key to ECDHSessionKey.  [#1518]
@@ -388,3 +398,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 [#1518]: https://github.com/trezor/trezor-firmware/issues/1518
 [#1549]: https://github.com/trezor/trezor-firmware/issues/1549
 [#1627]: https://github.com/trezor/trezor-firmware/issues/1627
+[#1647]: https://github.com/trezor/trezor-firmware/issues/1647
+[#1650]: https://github.com/trezor/trezor-firmware/issues/1650
