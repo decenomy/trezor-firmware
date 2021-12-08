@@ -1,0 +1,1 @@
+two new trezorctl commands - `trezorctl firmware download` and `trezorctl firmware verify`

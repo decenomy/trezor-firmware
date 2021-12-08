@@ -1,10 +1,8 @@
-from ubinascii import hexlify
-
 from trezor import strings, ui
 from trezor.enums import ButtonRequestType
 from trezor.ui.layouts import (
     confirm_action,
-    confirm_hex,
+    confirm_blob,
     confirm_metadata,
     confirm_output,
 )
@@ -22,7 +20,7 @@ if False:
 
 
 def _format_amount(value):
-    return "%s XMR" % strings.format_amount(value, 12)
+    return f"{strings.format_amount(value, 12)} XMR"
 
 
 async def require_confirm_watchkey(ctx):
@@ -137,11 +135,11 @@ async def _require_confirm_output(
 
 
 async def _require_confirm_payment_id(ctx, payment_id: bytes):
-    await confirm_hex(
+    await confirm_blob(
         ctx,
         "confirm_payment_id",
         title="Payment ID",
-        data=hexlify(payment_id).decode(),
+        data=payment_id,
         br_code=ButtonRequestType.SignTx,
     )
 
@@ -211,7 +209,7 @@ class LiveRefreshStep(ui.Component):
         p = (1000 * current // 8) % 1000
         ui.display.loader(p, True, 18, ui.WHITE, ui.BG)
         ui.display.text_center(
-            ui.WIDTH // 2, 145, "%d" % current, ui.NORMAL, ui.FG, ui.BG
+            ui.WIDTH // 2, 145, str(current), ui.NORMAL, ui.FG, ui.BG
         )
 
 
@@ -219,19 +217,19 @@ async def transaction_step(state: State, step: int, sub_step: int | None = None)
     if step == 0:
         info = ["Signing..."]
     elif step == state.STEP_INP:
-        info = ["Processing inputs", "%d/%d" % (sub_step + 1, state.input_count)]
+        info = ["Processing inputs", f"{sub_step + 1}/{state.input_count}"]
     elif step == state.STEP_PERM:
         info = ["Sorting..."]
     elif step == state.STEP_VINI:
-        info = ["Hashing inputs", "%d/%d" % (sub_step + 1, state.input_count)]
+        info = ["Hashing inputs", f"{sub_step + 1}/{state.input_count}"]
     elif step == state.STEP_ALL_IN:
         info = ["Processing..."]
     elif step == state.STEP_OUT:
-        info = ["Processing outputs", "%d/%d" % (sub_step + 1, state.output_count)]
+        info = ["Processing outputs", f"{sub_step + 1}/{state.output_count}"]
     elif step == state.STEP_ALL_OUT:
         info = ["Postprocessing..."]
     elif step == state.STEP_SIGN:
-        info = ["Signing inputs", "%d/%d" % (sub_step + 1, state.input_count)]
+        info = ["Signing inputs", f"{sub_step + 1}/{state.input_count}"]
     else:
         info = ["Processing..."]
 

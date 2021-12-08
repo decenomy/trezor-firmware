@@ -1,32 +1,39 @@
 from trezor import strings, ui
-from trezor.enums import ButtonRequestType
-from trezor.ui.constants import MONO_ADDR_PER_LINE
+from trezor.enums import ButtonRequestType, StellarAssetType, StellarMemoType
 from trezor.ui.layouts import (
     confirm_action,
-    confirm_hex,
+    confirm_address,
+    confirm_blob,
     confirm_metadata,
-    confirm_timebounds_stellar,
+    confirm_properties,
 )
+from trezor.wire import DataError
 
 from . import consts
 
+if False:
+    from trezor.wire import Context
+
+    from trezor.messages import StellarAsset
+
 
 async def require_confirm_init(
-    ctx, address: str, network_passphrase: str, accounts_match: bool
-):
+    ctx: Context,
+    address: str,
+    network_passphrase: str,
+    accounts_match: bool,
+) -> None:
     if accounts_match:
-        description = "Initialize signing with\nyour account"
+        description = "Initialize signing with your account"
     else:
         description = "Initialize signing with"
-    await require_confirm_op(
+    await confirm_address(
         ctx,
-        "confirm_init",
         title="Confirm Stellar",
-        subtitle=None,
+        address=address,
+        br_type="confirm_init",
         description=description,
-        data=address,
         icon=ui.ICON_SEND,
-        is_account=True,
     )
 
     network = get_network_warning(network_passphrase)
@@ -43,18 +50,34 @@ async def require_confirm_init(
         )
 
 
-async def require_confirm_timebounds(ctx, start: int, end: int):
-    await confirm_timebounds_stellar(ctx, start, end)
+async def require_confirm_timebounds(ctx: Context, start: int, end: int) -> None:
+    await confirm_properties(
+        ctx,
+        "confirm_timebounds",
+        title="Confirm timebounds",
+        props=(
+            (
+                "Valid from (UTC)",
+                strings.format_timestamp(start) if start > 0 else "[no restriction]",
+            ),
+            (
+                "Valid to (UTC)",
+                strings.format_timestamp(end) if end > 0 else "[no restriction]",
+            ),
+        ),
+    )
 
 
-async def require_confirm_memo(ctx, memo_type: int, memo_text: str):
-    if memo_type == consts.MEMO_TYPE_TEXT:
+async def require_confirm_memo(
+    ctx: Context, memo_type: StellarMemoType, memo_text: str
+) -> None:
+    if memo_type == StellarMemoType.TEXT:
         description = "Memo (TEXT)"
-    elif memo_type == consts.MEMO_TYPE_ID:
+    elif memo_type == StellarMemoType.ID:
         description = "Memo (ID)"
-    elif memo_type == consts.MEMO_TYPE_HASH:
+    elif memo_type == StellarMemoType.HASH:
         description = "Memo (HASH)"
-    elif memo_type == consts.MEMO_TYPE_RETURN:
+    elif memo_type == StellarMemoType.RETURN:
         description = "Memo (RETURN)"
     else:
         return await confirm_action(
@@ -68,17 +91,16 @@ async def require_confirm_memo(ctx, memo_type: int, memo_text: str):
             br_code=ButtonRequestType.ConfirmOutput,
         )
 
-    await require_confirm_op(
+    await confirm_blob(
         ctx,
         "confirm_memo",
         title="Confirm memo",
-        subtitle=description,
+        description=description,
         data=memo_text,
-        split=False,
     )
 
 
-async def require_confirm_final(ctx, fee: int, num_operations: int):
+async def require_confirm_final(ctx: Context, fee: int, num_operations: int) -> None:
     op_str = strings.format_plural("{count} {plural}", num_operations, "operation")
     await confirm_metadata(
         ctx,
@@ -91,40 +113,24 @@ async def require_confirm_final(ctx, fee: int, num_operations: int):
     )
 
 
-async def require_confirm_op(
-    ctx,
-    br_type: str,
-    subtitle: str | None,
-    data: str,
-    title: str = "Confirm operation",
-    description: str = None,
-    icon=ui.ICON_CONFIRM,
-    split: bool = True,
-    is_account: bool = False,
-):
-    await confirm_hex(
-        ctx,
-        br_type,
-        title=title,
-        subtitle=subtitle,
-        description=description,
-        data=data,
-        width=MONO_ADDR_PER_LINE if split else None,
-        icon=icon,
-        truncate=True,
-        truncate_ellipsis=".." if is_account else "",
-        br_code=ButtonRequestType.ConfirmOutput,
+def format_asset(asset: StellarAsset | None) -> str:
+    if asset is None or asset.type == StellarAssetType.NATIVE:
+        return "XLM"
+    else:
+        if asset.code is None:
+            raise DataError("Stellar asset code is missing")
+        return asset.code
+
+
+def format_amount(amount: int, asset: StellarAsset | None = None) -> str:
+    return (
+        strings.format_amount(amount, consts.AMOUNT_DECIMALS)
+        + " "
+        + format_asset(asset)
     )
 
 
-def format_amount(amount: int, ticker=True) -> str:
-    t = ""
-    if ticker:
-        t = " XLM"
-    return strings.format_amount(amount, consts.AMOUNT_DECIMALS) + t
-
-
-def get_network_warning(network_passphrase: str):
+def get_network_warning(network_passphrase: str) -> str | None:
     if network_passphrase == consts.NETWORK_PASSPHRASE_PUBLIC:
         return None
     if network_passphrase == consts.NETWORK_PASSPHRASE_TESTNET:

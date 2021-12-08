@@ -96,26 +96,24 @@ if TYPE_CHECKING:
         EthereumGetAddress = 56
         EthereumAddress = 57
         EthereumSignTx = 58
+        EthereumSignTxEIP1559 = 452
         EthereumTxRequest = 59
         EthereumTxAck = 60
         EthereumSignMessage = 64
         EthereumVerifyMessage = 65
         EthereumMessageSignature = 66
+        EthereumSignTypedData = 464
+        EthereumTypedDataStructRequest = 465
+        EthereumTypedDataStructAck = 466
+        EthereumTypedDataValueRequest = 467
+        EthereumTypedDataValueAck = 468
+        EthereumTypedDataSignature = 469
         NEMGetAddress = 67
         NEMAddress = 68
         NEMSignTx = 69
         NEMSignedTx = 70
         NEMDecryptMessage = 75
         NEMDecryptedMessage = 76
-        LiskGetAddress = 114
-        LiskAddress = 115
-        LiskSignTx = 116
-        LiskSignedTx = 117
-        LiskSignMessage = 118
-        LiskMessageSignature = 119
-        LiskVerifyMessage = 120
-        LiskGetPublicKey = 121
-        LiskPublicKey = 122
         TezosGetAddress = 150
         TezosAddress = 151
         TezosSignTx = 152
@@ -128,15 +126,17 @@ if TYPE_CHECKING:
         StellarAddress = 208
         StellarCreateAccountOp = 210
         StellarPaymentOp = 211
-        StellarPathPaymentOp = 212
-        StellarManageOfferOp = 213
-        StellarCreatePassiveOfferOp = 214
+        StellarPathPaymentStrictReceiveOp = 212
+        StellarManageSellOfferOp = 213
+        StellarCreatePassiveSellOfferOp = 214
         StellarSetOptionsOp = 215
         StellarChangeTrustOp = 216
         StellarAllowTrustOp = 217
         StellarAccountMergeOp = 218
         StellarManageDataOp = 220
         StellarBumpSequenceOp = 221
+        StellarManageBuyOfferOp = 222
+        StellarPathPaymentStrictSendOp = 223
         StellarSignedTx = 230
         CardanoSignTx = 303
         CardanoGetPublicKey = 305
@@ -146,6 +146,26 @@ if TYPE_CHECKING:
         CardanoSignedTx = 310
         CardanoSignedTxChunk = 311
         CardanoSignedTxChunkAck = 312
+        CardanoTxItemAck = 313
+        CardanoTxAuxiliaryDataSupplement = 314
+        CardanoTxWitnessRequest = 315
+        CardanoTxWitnessResponse = 316
+        CardanoTxHostAck = 317
+        CardanoTxBodyHash = 318
+        CardanoSignTxFinished = 319
+        CardanoSignTxInit = 320
+        CardanoTxInput = 321
+        CardanoTxOutput = 322
+        CardanoAssetGroup = 323
+        CardanoToken = 324
+        CardanoTxCertificate = 325
+        CardanoTxWithdrawal = 326
+        CardanoTxAuxiliaryData = 327
+        CardanoPoolOwner = 328
+        CardanoPoolRelayParameters = 329
+        CardanoGetNativeScriptHash = 330
+        CardanoNativeScriptHash = 331
+        CardanoTxMint = 332
         RippleGetAddress = 400
         RippleAddress = 401
         RippleSignTx = 402
@@ -278,6 +298,7 @@ if TYPE_CHECKING:
         EXTERNAL = 2
         SPENDWITNESS = 3
         SPENDP2SHWITNESS = 4
+        SPENDTAPROOT = 5
 
     class OutputScriptType(IntEnum):
         PAYTOADDRESS = 0
@@ -286,6 +307,7 @@ if TYPE_CHECKING:
         PAYTOOPRETURN = 3
         PAYTOWITNESS = 4
         PAYTOP2SHWITNESS = 5
+        PAYTOTAPROOT = 6
 
     class DecredStakingSpendType(IntEnum):
         SSGen = 0
@@ -306,6 +328,11 @@ if TYPE_CHECKING:
         TXORIGINPUT = 5
         TXORIGOUTPUT = 6
 
+    class CardanoDerivationType(IntEnum):
+        LEDGER = 0
+        ICARUS = 1
+        ICARUS_TREZOR = 2
+
     class CardanoAddressType(IntEnum):
         BASE = 0
         BASE_SCRIPT_KEY = 1
@@ -319,6 +346,19 @@ if TYPE_CHECKING:
         REWARD = 14
         REWARD_SCRIPT = 15
 
+    class CardanoNativeScriptType(IntEnum):
+        PUB_KEY = 0
+        ALL = 1
+        ANY = 2
+        N_OF_K = 3
+        INVALID_BEFORE = 4
+        INVALID_HEREAFTER = 5
+
+    class CardanoNativeScriptHashDisplayFormat(IntEnum):
+        HIDE = 0
+        BECH32 = 1
+        POLICY_ID = 2
+
     class CardanoCertificateType(IntEnum):
         STAKE_REGISTRATION = 0
         STAKE_DEREGISTRATION = 1
@@ -329,6 +369,19 @@ if TYPE_CHECKING:
         SINGLE_HOST_IP = 0
         SINGLE_HOST_NAME = 1
         MULTIPLE_HOST_NAME = 2
+
+    class CardanoTxAuxiliaryDataSupplementType(IntEnum):
+        NONE = 0
+        CATALYST_REGISTRATION_SIGNATURE = 1
+
+    class CardanoTxSigningMode(IntEnum):
+        ORDINARY_TRANSACTION = 0
+        POOL_REGISTRATION_AS_OWNER = 1
+        MULTISIG_TRANSACTION = 2
+
+    class CardanoTxWitnessType(IntEnum):
+        BYRON_WITNESS = 0
+        SHELLEY_WITNESS = 1
 
     class BackupType(IntEnum):
         Bip39 = 0
@@ -379,15 +432,15 @@ if TYPE_CHECKING:
         LEFT = 2
         RIGHT = 3
 
-    class LiskTransactionType(IntEnum):
-        Transfer = 0
-        RegisterSecondPassphrase = 1
-        RegisterDelegate = 2
-        CastVotes = 3
-        RegisterMultisignatureAccount = 4
-        CreateDapp = 5
-        TransferIntoDapp = 6
-        TransferOutOfDapp = 7
+    class EthereumDataType(IntEnum):
+        UINT = 1
+        INT = 2
+        BYTES = 3
+        STRING = 4
+        BOOL = 5
+        ADDRESS = 6
+        ARRAY = 7
+        STRUCT = 8
 
     class NEMMosaicLevy(IntEnum):
         MosaicLevy_Absolute = 1
@@ -404,6 +457,23 @@ if TYPE_CHECKING:
     class NEMImportanceTransferMode(IntEnum):
         ImportanceTransfer_Activate = 1
         ImportanceTransfer_Deactivate = 2
+
+    class StellarAssetType(IntEnum):
+        NATIVE = 0
+        ALPHANUM4 = 1
+        ALPHANUM12 = 2
+
+    class StellarMemoType(IntEnum):
+        NONE = 0
+        TEXT = 1
+        ID = 2
+        HASH = 3
+        RETURN = 4
+
+    class StellarSignerType(IntEnum):
+        ACCOUNT = 0
+        PRE_AUTH = 1
+        HASH = 2
 
     class TezosContractType(IntEnum):
         Implicit = 0

@@ -1,12 +1,17 @@
 from micropython import const
 from ubinascii import hexlify
 
+from trezor import utils
 from trezor.enums import AmountUnit, ButtonRequestType, OutputScriptType
-from trezor.strings import format_amount
+from trezor.strings import format_amount, format_timestamp
 from trezor.ui import layouts
 
 from .. import addresses
 from . import omni
+
+if not utils.BITCOIN_ONLY:
+    from trezor.ui.layouts.tt import altcoin
+
 
 if False:
     from trezor import wire
@@ -30,7 +35,7 @@ def format_coin_amount(amount: int, coin: CoinInfo, amount_unit: AmountUnit) -> 
         decimals -= 3
         shortcut = "m" + shortcut
     # we don't need to do anything for AmountUnit.BITCOIN
-    return "%s %s" % (format_amount(amount, decimals), shortcut)
+    return f"{format_amount(amount, decimals)} {shortcut}"
 
 
 async def confirm_output(
@@ -50,13 +55,12 @@ async def confirm_output(
             )
         else:
             # generic OP_RETURN
-            layout = layouts.confirm_hex(
+            layout = layouts.confirm_blob(
                 ctx,
                 "op_return",
                 title="OP_RETURN",
-                data=hexlify(data).decode(),
+                data=data,
                 br_code=ButtonRequestType.ConfirmOutput,
-                truncate=True,  # 80 bytes - not truncated 2 screens max
             )
     else:
         assert output.address is not None
@@ -74,7 +78,7 @@ async def confirm_decred_sstx_submission(
     assert output.address is not None
     address_short = addresses.address_short(coin, output.address)
 
-    await layouts.confirm_decred_sstx_submission(
+    await altcoin.confirm_decred_sstx_submission(
         ctx, address_short, format_coin_amount(output.amount, coin, amount_unit)
     )
 
@@ -189,8 +193,8 @@ async def confirm_nondefault_locktime(
         param = str(lock_time)
     else:
         title = "Confirm locktime"
-        text = "Locktime for this\ntransaction is set to\ntimestamp:\n{}"
-        param = str(lock_time)
+        text = "Locktime for this\ntransaction is set to:\n{}"
+        param = format_timestamp(lock_time)
 
     await layouts.confirm_metadata(
         ctx,

@@ -22,6 +22,7 @@
 #include "bl_check.h"
 #include "buttons.h"
 #include "common.h"
+#include "compiler_traits.h"
 #include "config.h"
 #include "gettext.h"
 #include "layout.h"
@@ -36,6 +37,23 @@
 #if !EMULATOR
 #include <libopencm3/stm32/desig.h>
 #include "otp.h"
+#endif
+#ifdef USE_SECP256K1_ZKP
+#include "zkp_context.h"
+#endif
+
+#ifdef USE_SECP256K1_ZKP
+void secp256k1_default_illegal_callback_fn(const char *str, void *data) {
+  (void)data;
+  __fatal_error(NULL, str, __FILE__, __LINE__, __func__);
+  return;
+}
+
+void secp256k1_default_error_callback_fn(const char *str, void *data) {
+  (void)data;
+  __fatal_error(NULL, str, __FILE__, __LINE__, __func__);
+  return;
+}
 #endif
 
 /* Screen timeout */
@@ -142,6 +160,10 @@ int main(void) {
     collect_hw_entropy(false);
   }
 
+#ifdef USE_SECP256K1_ZKP
+  ensure(sectrue * (zkp_context_init() == 0), NULL);
+#endif
+
 #if DEBUG_LINK
   oledSetDebugLink(1);
 #if !EMULATOR
@@ -157,7 +179,11 @@ int main(void) {
   layoutHome();
   usbInit();
   for (;;) {
+#if EMULATOR
+    usbSleep(10);
+#else
     usbPoll();
+#endif
     check_lock_screen();
   }
 

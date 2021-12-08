@@ -18,11 +18,26 @@ if [ -z "$ALPINE_ARCH" ]; then
   esac
 fi
 
+if [ -z "$ALPINE_CHECKSUM" ]; then
+  case "$ALPINE_ARCH" in
+    aarch64)
+      ALPINE_CHECKSUM="a5de8f89f3851d929704feafda9ff0d7402ae138176bba8b3f6a25ecbb0b8f46"
+      ;;
+    x86_64)
+      ALPINE_CHECKSUM="4591f811a5515b13d60ab76f78bb8fd1cb9d9857a98cf7e2e5b200e89701e62c"
+      ;;
+    *)
+      exit
+  esac
+ fi
+
+
 CONTAINER_NAME=${CONTAINER_NAME:-trezor-firmware-env.nix}
-ALPINE_CDN=${ALPINE_CDN:-http://dl-cdn.alpinelinux.org/alpine}
-ALPINE_RELEASE=${ALPINE_RELEASE:-3.13}
-ALPINE_VERSION=${ALPINE_VERSION:-3.13.2}
+ALPINE_CDN=${ALPINE_CDN:-https://dl-cdn.alpinelinux.org/alpine}
+ALPINE_RELEASE=${ALPINE_RELEASE:-3.14}
+ALPINE_VERSION=${ALPINE_VERSION:-3.14.2}
 ALPINE_TARBALL=${ALPINE_FILE:-alpine-minirootfs-$ALPINE_VERSION-$ALPINE_ARCH.tar.gz}
+NIX_VERSION=${NIX_VERSION:-2.3.15}
 CONTAINER_FS_URL=${CONTAINER_FS_URL:-"$ALPINE_CDN/v$ALPINE_RELEASE/releases/$ALPINE_ARCH/$ALPINE_TARBALL"}
 
 VARIANTS_core=(0 1)
@@ -58,7 +73,14 @@ else
   fi
 fi
 
-docker build --build-arg ALPINE_VERSION="$ALPINE_VERSION" --build-arg ALPINE_ARCH="$ALPINE_ARCH" -t "$CONTAINER_NAME" ci/
+# check alpine checksum
+if command -v sha256sum &> /dev/null ; then
+    echo "${ALPINE_CHECKSUM}  ci/${ALPINE_TARBALL}" | sha256sum -c
+else
+    echo "${ALPINE_CHECKSUM}  ci/${ALPINE_TARBALL}" | shasum -a 256 -c
+fi
+
+docker build --build-arg ALPINE_VERSION="$ALPINE_VERSION" --build-arg ALPINE_ARCH="$ALPINE_ARCH" --build-arg NIX_VERSION="$NIX_VERSION" -t "$CONTAINER_NAME" ci/
 
 # stat under macOS has slightly different cli interface
 USER=$(stat -c "%u" . 2>/dev/null || stat -f "%u" .)

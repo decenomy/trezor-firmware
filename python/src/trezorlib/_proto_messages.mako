@@ -3,7 +3,7 @@
 # isort:skip_file
 
 from enum import IntEnum
-from typing import List, Optional
+from typing import Sequence, Optional
 
 from . import protobuf
 % for enum in enums:
@@ -21,22 +21,13 @@ class ${enum.name}(IntEnum):
 required_fields = [f for f in message.fields if f.required]
 repeated_fields = [f for f in message.fields if f.repeated]
 optional_fields = [f for f in message.fields if f.optional]
-
-
-def type_name(field):
-    if field.type_object is not None:
-        return field.type_name
-    else:
-        return '"' + field.type_name + '"'
-
-
 %>\
 class ${message.name}(protobuf.MessageType):
     MESSAGE_WIRE_TYPE = ${message.wire_type}
 % if message.fields:
     FIELDS = {
 % for field in message.fields:
-        ${field.number}: protobuf.Field("${field.name}", ${type_name(field)}, repeated=${field.repeated}, required=${field.required}),
+        ${field.number}: protobuf.Field("${field.name}", "${field.type_name}", repeated=${field.repeated}, required=${field.required}),
 % endfor
     }
 
@@ -44,17 +35,17 @@ class ${message.name}(protobuf.MessageType):
         self,
         *,
 % for field in required_fields:
-        ${field.name}: ${field.python_type},
+        ${field.name}: "${field.python_type}",
 % endfor
 % for field in repeated_fields:
-        ${field.name}: Optional[List[${field.python_type}]] = None,
+        ${field.name}: Optional[Sequence["${field.python_type}"]] = None,
 % endfor
 % for field in optional_fields:
-        ${field.name}: Optional[${field.python_type}] = ${field.default_value_repr},
+        ${field.name}: Optional["${field.python_type}"] = ${field.default_value_repr},
 % endfor
     ) -> None:
 % for field in repeated_fields:
-        self.${field.name} = ${field.name} if ${field.name} is not None else []
+        self.${field.name}: Sequence["${field.python_type}"] = ${field.name} if ${field.name} is not None else []
 % endfor
 % for field in required_fields + optional_fields:
         self.${field.name} = ${field.name}

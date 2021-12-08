@@ -1,8 +1,7 @@
-from ubinascii import hexlify
-
 from trezor import ui, wire
+from trezor.enums import InputScriptType
 from trezor.messages import GetOwnershipProof, OwnershipProof
-from trezor.ui.layouts import confirm_action, confirm_hex
+from trezor.ui.layouts import confirm_action, confirm_blob
 
 from apps.common.paths import validate_path
 
@@ -44,6 +43,9 @@ async def get_ownership_proof(
     if msg.script_type in common.SEGWIT_INPUT_SCRIPT_TYPES and not coin.segwit:
         raise wire.DataError("Segwit not enabled on this coin")
 
+    if msg.script_type == InputScriptType.SPENDTAPROOT and not coin.taproot:
+        raise wire.DataError("Taproot not enabled on this coin")
+
     node = keychain.derive(msg.address_n)
     address = addresses.get_address(msg.script_type, coin, node, msg.multisig)
     script_pubkey = scripts.output_derive_script(address, coin)
@@ -62,24 +64,21 @@ async def get_ownership_proof(
 
     # In order to set the "user confirmation" bit in the proof, the user must actually confirm.
     if msg.user_confirmation and not authorization:
-        if not msg.commitment_data:
-            await confirm_action(
+        await confirm_action(
+            ctx,
+            "confirm_ownership_proof",
+            title="Proof of ownership",
+            description="Do you want to create a proof of ownership?",
+        )
+        if msg.commitment_data:
+            await confirm_blob(
                 ctx,
                 "confirm_ownership_proof",
                 title="Proof of ownership",
-                description="Do you want to create a proof of ownership?",
-            )
-        else:
-            await confirm_hex(
-                ctx,
-                "confirm_ownership_proof",
-                title="Proof of ownership",
-                description="Do you want to create a proof of ownership for:",
-                data=hexlify(msg.commitment_data).decode(),
+                description="Commitment data:",
+                data=msg.commitment_data,
                 icon=ui.ICON_CONFIG,
                 icon_color=ui.ORANGE_ICON,
-                truncate=True,  # commitment data, probably should show all
-                truncate_middle=True,
             )
 
     ownership_proof, signature = generate_proof(

@@ -79,7 +79,12 @@ def current_date(project):
     parts = project.parts
     today = datetime.datetime.now()
 
-    if parts[-2:] == ("legacy", "bootloader"):
+    if (
+        parts[-3:] == ("core", "embed", "bootloader")
+        or parts[-3:] == ("core", "embed", "bootloader_ci")
+        or parts[-2:] == ("legacy", "bootloader")
+        or parts[-2:] == ("legacy", "intermediate_fw")
+    ):
         return today.strftime("%B %Y")
     elif parts[-1] == "python":
         return today.strftime("%Y-%m-%d")
@@ -117,7 +122,7 @@ def cli(project, version, date, check):
     changelog = project / "CHANGELOG.md"
 
     if not changelog.exists():
-        raise click.ClickException("{} not found".format(changelog))
+        raise click.ClickException(f"{changelog} not found")
 
     if version is None:
         if not check:

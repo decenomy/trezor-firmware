@@ -101,12 +101,17 @@ def _wrap_protobuf_load(
     expected_type: type[LoadedMessageType],
 ) -> LoadedMessageType:
     try:
-        return protobuf.decode(buffer, expected_type, experimental_enabled)
+        msg = protobuf.decode(buffer, expected_type, experimental_enabled)
+        if __debug__ and utils.EMULATOR:
+            log.debug(
+                __name__, "received message contents:\n%s", utils.dump_protobuf(msg)
+            )
+        return msg
     except Exception as e:
         if __debug__:
             log.exception(__name__, e)
         if e.args:
-            raise DataError("Failed to decode message: {}".format(e.args[0]))
+            raise DataError("Failed to decode message: " + " ".join(e.args))
         else:
             raise DataError("Failed to decode message")
 
@@ -130,8 +135,6 @@ DUMMY_CONTEXT = DummyContext()
 PROTOBUF_BUFFER_SIZE = 8192
 
 WIRE_BUFFER = bytearray(PROTOBUF_BUFFER_SIZE)
-if __debug__:
-    WIRE_BUFFER_DEBUG = bytearray(PROTOBUF_BUFFER_SIZE)
 
 
 class Context:
@@ -294,7 +297,7 @@ async def _handle_single_message(
         try:
             msg_type = protobuf.type_for_wire(msg.type).MESSAGE_NAME
         except Exception:
-            msg_type = "%d - unknown message type" % msg.type
+            msg_type = f"{msg.type} - unknown message type"
         log.debug(
             __name__,
             "%s:%x receive: <%s>",
@@ -306,7 +309,7 @@ async def _handle_single_message(
     res_msg: protobuf.MessageType | None = None
 
     # We need to find a handler for this message type.  Should not raise.
-    handler = find_handler(ctx.iface, msg.type)
+    handler = find_handler(ctx.iface, msg.type)  # pylint: disable=assignment-from-none
 
     if handler is None:
         # If no handler is found, we can skip decoding and directly
@@ -361,7 +364,7 @@ async def _handle_single_message(
         # - something canceled the workflow from the outside
         if __debug__:
             if isinstance(exc, ActionCancelled):
-                log.debug(__name__, "cancelled: {}".format(exc.message))
+                log.debug(__name__, "cancelled: %s", exc.message)
             elif isinstance(exc, loop.TaskClosed):
                 log.debug(__name__, "cancelled: loop task was closed")
             else:
@@ -378,11 +381,7 @@ async def _handle_single_message(
 async def handle_session(
     iface: WireInterface, session_id: int, is_debug_session: bool = False
 ) -> None:
-    if __debug__ and is_debug_session:
-        ctx_buffer = WIRE_BUFFER_DEBUG
-    else:
-        ctx_buffer = WIRE_BUFFER
-    ctx = Context(iface, session_id, ctx_buffer)
+    ctx = Context(iface, session_id, WIRE_BUFFER)
     next_msg: codec_v1.Message | None = None
 
     if __debug__ and is_debug_session:
@@ -432,7 +431,7 @@ async def handle_session(
                         # Shut down the loop if there is no next message waiting.
                         # Let the session be restarted from `main`.
                         loop.clear()
-                        return
+                        return  # pylint: disable=lost-exception
 
         except Exception as exc:
             # Log and try again. The session handler can only exit explicitly via

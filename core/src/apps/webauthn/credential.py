@@ -7,7 +7,8 @@ from trezor import log, utils
 from trezor.crypto import bip32, chacha20poly1305, der, hashlib, hmac, random
 from trezor.crypto.curve import ed25519, nist256p1
 
-from apps.common import HARDENED, cbor, seed
+from apps.common import cbor, seed
+from apps.common.paths import HARDENED
 
 from . import common
 
@@ -411,10 +412,9 @@ class U2fCredential(Credential):
         if app is not None:
             return app.label
 
-        return "%s...%s" % (
-            hexlify(self.rp_id_hash[:4]).decode(),
-            hexlify(self.rp_id_hash[-4:]).decode(),
-        )
+        start = hexlify(self.rp_id_hash[:4]).decode()
+        end = hexlify(self.rp_id_hash[-4:]).decode()
+        return f"{start}...{end}"
 
     @staticmethod
     def from_key_handle(key_handle: bytes, rp_id_hash: bytes) -> "U2fCredential":

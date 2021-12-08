@@ -3,8 +3,7 @@ from trezor.enums import InputScriptType
 from trezor.messages import Address
 from trezor.ui.layouts import show_address
 
-from apps.common.layout import address_n_to_str
-from apps.common.paths import validate_path
+from apps.common.paths import address_n_to_str, validate_path
 
 from . import addresses
 from .keychain import validate_path_against_script_type, with_keychain
@@ -53,7 +52,10 @@ async def get_address(
 
     address = addresses.get_address(msg.script_type, coin, node, msg.multisig)
     address_short = addresses.address_short(coin, address)
-    if coin.segwit and msg.script_type == InputScriptType.SPENDWITNESS:
+    if coin.segwit and msg.script_type in (
+        InputScriptType.SPENDWITNESS,
+        InputScriptType.SPENDTAPROOT,
+    ):
         address_qr = address.upper()  # bech32 address
     elif coin.cashaddr_prefix is not None:
         address_qr = address.upper()  # cashaddr address
@@ -82,7 +84,7 @@ async def get_address(
                 pubnodes = [hd.node for hd in msg.multisig.pubkeys]
             multisig_index = multisig_pubkey_index(msg.multisig, node.public_key())
 
-            title = "Multisig %d of %d" % (msg.multisig.m, len(pubnodes))
+            title = f"Multisig {msg.multisig.m} of {len(pubnodes)}"
             await show_address(
                 ctx,
                 address=address_short,

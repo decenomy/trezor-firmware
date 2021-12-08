@@ -1,6 +1,6 @@
 # This file is part of the Trezor project.
 #
-# Copyright (C) 2012-2019 SatoshiLabs and contributors
+# Copyright (C) 2012-2022 SatoshiLabs and contributors
 #
 # This library is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License version 3
@@ -24,30 +24,33 @@ For serializing (dumping) protobuf types, object with `Writer` interface is requ
 
 import logging
 import warnings
+from dataclasses import dataclass
 from enum import IntEnum
 from io import BytesIO
 from itertools import zip_longest
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
-import attr
-from typing_extensions import Protocol
+from typing_extensions import Protocol, TypeGuard
 
+T = TypeVar("T", bound=type)
 MT = TypeVar("MT", bound="MessageType")
 
 
 class Reader(Protocol):
-    def readinto(self, buffer: bytearray) -> int:
+    def readinto(self, buf: bytearray) -> int:
         """
         Reads exactly `len(buffer)` bytes into `buffer`. Returns number of bytes read,
         or 0 if it cannot read that much.
         """
+        ...
 
 
 class Writer(Protocol):
-    def write(self, buffer: bytes) -> int:
+    def write(self, buf: bytes) -> int:
         """
         Writes all bytes from `buffer`, or raises `EOFError`
         """
+        ...
 
 
 _UVARINT_BUFFER = bytearray(1)
@@ -55,7 +58,7 @@ _UVARINT_BUFFER = bytearray(1)
 LOG = logging.getLogger(__name__)
 
 
-def safe_issubclass(value, cls):
+def safe_issubclass(value: Any, cls: Union[T, Tuple[T, ...]]) -> TypeGuard[T]:
     return isinstance(value, type) and issubclass(value, cls)
 
 
@@ -141,23 +144,24 @@ WIRE_TYPES = {
 REQUIRED_FIELD_PLACEHOLDER = object()
 
 
-@attr.s(auto_attribs=True)
+@dataclass
 class Field:
     name: str
-    type: Union[str, "MessageType", IntEnum]
-    repeated: bool = attr.ib(default=False)
-    required: bool = attr.ib(default=False)
-    default: object = attr.ib(default=None)
+    type: str
+    repeated: bool = False
+    required: bool = False
+    default: object = None
 
     @property
     def wire_type(self) -> int:
         if self.type in WIRE_TYPES:
             return WIRE_TYPES[self.type]
 
-        if safe_issubclass(self.type, MessageType):
+        field_type_object = get_field_type_object(self)
+        if safe_issubclass(field_type_object, MessageType):
             return WIRE_TYPE_LENGTH
 
-        if safe_issubclass(self.type, IntEnum):
+        if safe_issubclass(field_type_object, IntEnum):
             return WIRE_TYPE_INT
 
         raise ValueError(f"Unrecognized type for field {self.name}")
@@ -176,10 +180,10 @@ class Field:
 
 
 class _MessageTypeMeta(type):
-    def __init__(cls, name, bases, d) -> None:
-        super().__init__(name, bases, d)
+    def __init__(cls, name: str, bases: tuple, d: dict) -> None:
+        super().__init__(name, bases, d)  # type: ignore [Expected 1 positional]
         if name != "MessageType":
-            cls.__init__ = MessageType.__init__
+            cls.__init__ = MessageType.__init__  # type: ignore [Cannot assign member "__init__" for type "_MessageTypeMeta"]
 
 
 class MessageType(metaclass=_MessageTypeMeta):
@@ -192,7 +196,7 @@ class MessageType(metaclass=_MessageTypeMeta):
     def get_field(cls, name: str) -> Optional[Field]:
         return next((f for f in cls.FIELDS.values() if f.name == name), None)
 
-    def __init__(self, *args, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         if args:
             warnings.warn(
                 "Positional arguments for MessageType are deprecated",
@@ -214,6 +218,7 @@ class MessageType(metaclass=_MessageTypeMeta):
                 # set in args but not in kwargs
                 setattr(self, field.name, val)
             else:
+                default: Any
                 # not set at all, pick a default
                 if field.repeated:
                     default = []
@@ -237,7 +242,7 @@ class MessageType(metaclass=_MessageTypeMeta):
             if value is None or value == []:
                 continue
             d[key] = value
-        return "<%s: %s>" % (self.__class__.__name__, d)
+        return f"<{self.__class__.__name__}: {d}>"
 
     def ByteSize(self) -> int:
         data = BytesIO()
@@ -269,6 +274,17 @@ class CountingWriter:
         return nwritten
 
 
+def get_field_type_object(
+    field: Field,
+) -> Optional[Union[Type[MessageType], Type[IntEnum]]]:
+    from . import messages
+
+    field_type_object = getattr(messages, field.type, None)
+    if not safe_issubclass(field_type_object, (IntEnum, MessageType)):
+        return None
+    return field_type_object
+
+
 def decode_packed_array_field(field: Field, reader: Reader) -> List[Any]:
     assert field.repeated, "Not decoding packed array into non-repeated field"
     length = load_uvarint(reader)
@@ -285,9 +301,11 @@ def decode_packed_array_field(field: Field, reader: Reader) -> List[Any]:
 def decode_varint_field(field: Field, reader: Reader) -> Union[int, bool, IntEnum]:
     assert field.wire_type == WIRE_TYPE_INT, f"Field {field.name} is not varint-encoded"
     value = load_uvarint(reader)
-    if safe_issubclass(field.type, IntEnum):
+
+    field_type_object = get_field_type_object(field)
+    if safe_issubclass(field_type_object, IntEnum):
         try:
-            return field.type(value)
+            return field_type_object(value)
         except ValueError as e:
             # treat enum errors as warnings
             LOG.info(f"On field {field.name}: {e}")
@@ -328,14 +346,15 @@ def decode_length_delimited_field(
         reader.readinto(buf)
         return buf.decode()
 
-    if safe_issubclass(field.type, MessageType):
-        return load_message(LimitedReader(reader, value), field.type)
+    field_type_object = get_field_type_object(field)
+    if safe_issubclass(field_type_object, MessageType):
+        return load_message(LimitedReader(reader, value), field_type_object)
 
     raise TypeError  # field type is unknown
 
 
 def load_message(reader: Reader, msg_type: Type[MT]) -> MT:
-    msg_dict = {}
+    msg_dict: Dict[str, Any] = {}
     # pre-seed the dict
     for field in msg_type.FIELDS.values():
         if field.repeated:
@@ -352,9 +371,7 @@ def load_message(reader: Reader, msg_type: Type[MT]) -> MT:
         ftag = fkey >> 3
         wtype = fkey & 7
 
-        field = msg_type.FIELDS.get(ftag, None)
-
-        if field is None:  # unknown field, skip it
+        if ftag not in msg_type.FIELDS:  # unknown field, skip it
             if wtype == WIRE_TYPE_INT:
                 load_uvarint(reader)
             elif wtype == WIRE_TYPE_LENGTH:
@@ -363,6 +380,8 @@ def load_message(reader: Reader, msg_type: Type[MT]) -> MT:
             else:
                 raise ValueError
             continue
+
+        field = msg_type.FIELDS[ftag]
 
         if (
             wtype == WIRE_TYPE_LENGTH
@@ -397,7 +416,7 @@ def load_message(reader: Reader, msg_type: Type[MT]) -> MT:
     return msg_type(**msg_dict)
 
 
-def dump_message(writer: Writer, msg: MessageType) -> None:
+def dump_message(writer: Writer, msg: "MessageType") -> None:
     repvalue = [0]
     mtype = msg.__class__
 
@@ -420,16 +439,21 @@ def dump_message(writer: Writer, msg: MessageType) -> None:
         for svalue in fvalue:
             dump_uvarint(writer, fkey)
 
-            if safe_issubclass(field.type, MessageType):
+            field_type_object = get_field_type_object(field)
+            if safe_issubclass(field_type_object, MessageType):
+                if not isinstance(svalue, field_type_object):
+                    raise ValueError(
+                        f"Value {svalue} in field {field.name} is not {field_type_object.__name__}"
+                    )
                 counter = CountingWriter()
                 dump_message(counter, svalue)
                 dump_uvarint(writer, counter.size)
                 dump_message(writer, svalue)
 
-            elif safe_issubclass(field.type, IntEnum):
-                if svalue not in field.type.__members__.values():
+            elif safe_issubclass(field_type_object, IntEnum):
+                if svalue not in field_type_object.__members__.values():
                     raise ValueError(
-                        f"Value {svalue} in field {field.name} unknown for {field.type.__name__}"
+                        f"Value {svalue} in field {field.name} unknown for {field.type}"
                     )
                 dump_uvarint(writer, svalue)
 
@@ -451,10 +475,12 @@ def dump_message(writer: Writer, msg: MessageType) -> None:
                 dump_uvarint(writer, int(svalue))
 
             elif field.type == "bytes":
+                assert isinstance(svalue, (bytes, bytearray))
                 dump_uvarint(writer, len(svalue))
                 writer.write(svalue)
 
             elif field.type == "string":
+                assert isinstance(svalue, str)
                 svalue_bytes = svalue.encode()
                 dump_uvarint(writer, len(svalue_bytes))
                 writer.write(svalue_bytes)
@@ -464,7 +490,7 @@ def dump_message(writer: Writer, msg: MessageType) -> None:
 
 
 def format_message(
-    pb: MessageType,
+    pb: "MessageType",
     indent: int = 0,
     sep: str = " " * 4,
     truncate_after: Optional[int] = 256,
@@ -479,7 +505,6 @@ def format_message(
     def pformat(name: str, value: Any, indent: int) -> str:
         level = sep * indent
         leadin = sep * (indent + 1)
-        field = pb.get_field(name)
 
         if isinstance(value, MessageType):
             return format_message(value, indent, sep)
@@ -513,13 +538,15 @@ def format_message(
                 output = repr(value)
             else:
                 output = "0x" + value.hex()
-            return "{} bytes {}{}".format(length, output, suffix)
+            return f"{length} bytes {output}{suffix}"
 
-        if isinstance(value, int) and safe_issubclass(field.type, IntEnum):
-            try:
-                return "{} ({})".format(field.type(value).name, value)
-            except ValueError:
-                return str(value)
+        field = pb.get_field(name)
+        if field is not None:
+            if isinstance(value, int) and safe_issubclass(field.type, IntEnum):
+                try:
+                    return f"{field.type(value).name} ({value})"
+                except ValueError:
+                    return str(value)
 
         return repr(value)
 
@@ -531,15 +558,16 @@ def format_message(
 
 
 def value_to_proto(field: Field, value: Any) -> Any:
-    if safe_issubclass(field.type, MessageType):
+    field_type_object = get_field_type_object(field)
+    if safe_issubclass(field_type_object, MessageType):
         raise TypeError("value_to_proto only converts simple values")
 
-    if safe_issubclass(field.type, IntEnum):
+    if safe_issubclass(field_type_object, IntEnum):
         if isinstance(value, str):
-            return field.type.__members__[value]
+            return field_type_object.__members__[value]
         else:
             try:
-                return field.type(value)
+                return field_type_object(value)
             except ValueError as e:
                 LOG.info(f"On field {field.name}: {e}")
                 return int(value)
@@ -572,8 +600,9 @@ def dict_to_proto(message_type: Type[MT], d: Dict[str, Any]) -> MT:
         if not field.repeated:
             value = [value]
 
-        if safe_issubclass(field.type, MessageType):
-            newvalue = [dict_to_proto(field.type, v) for v in value]
+        field_type_object = get_field_type_object(field)
+        if safe_issubclass(field_type_object, MessageType):
+            newvalue = [dict_to_proto(field_type_object, v) for v in value]
         else:
             newvalue = [value_to_proto(field, v) for v in value]
 
@@ -584,14 +613,14 @@ def dict_to_proto(message_type: Type[MT], d: Dict[str, Any]) -> MT:
     return message_type(**params)
 
 
-def to_dict(msg: MessageType, hexlify_bytes: bool = True) -> Dict[str, Any]:
-    def convert_value(field: Field, value: Any) -> Any:
+def to_dict(msg: "MessageType", hexlify_bytes: bool = True) -> Dict[str, Any]:
+    def convert_value(value: Any) -> Any:
         if hexlify_bytes and isinstance(value, bytes):
             return value.hex()
         elif isinstance(value, MessageType):
             return to_dict(value, hexlify_bytes)
         elif isinstance(value, list):
-            return [convert_value(field, v) for v in value]
+            return [convert_value(v) for v in value]
         elif isinstance(value, IntEnum):
             return value.name
         else:
@@ -601,6 +630,6 @@ def to_dict(msg: MessageType, hexlify_bytes: bool = True) -> Dict[str, Any]:
     for key, value in msg.__dict__.items():
         if value is None or value == []:
             continue
-        res[key] = convert_value(msg.get_field(key), value)
+        res[key] = convert_value(value)
 
     return res

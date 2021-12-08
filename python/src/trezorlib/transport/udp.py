@@ -1,6 +1,6 @@
 # This file is part of the Trezor project.
 #
-# Copyright (C) 2012-2019 SatoshiLabs and contributors
+# Copyright (C) 2012-2022 SatoshiLabs and contributors
 #
 # This library is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License version 3
@@ -17,14 +17,16 @@
 import logging
 import socket
 import time
-from typing import Iterable, Optional, cast
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from ..log import DUMP_PACKETS
 from . import TransportException
 from .protocol import ProtocolBasedTransport, ProtocolV1
 
+if TYPE_CHECKING:
+    from ..models import TrezorModel
+
 SOCKET_TIMEOUT = 10
-TRY_PATH_TIMEOUT = 1
 
 LOG = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ class UdpTransport(ProtocolBasedTransport):
     PATH_PREFIX = "udp"
     ENABLED = True
 
-    def __init__(self, device: str = None) -> None:
+    def __init__(self, device: Optional[str] = None) -> None:
         if not device:
             host = UdpTransport.DEFAULT_HOST
             port = UdpTransport.DEFAULT_PORT
@@ -54,22 +56,27 @@ class UdpTransport(ProtocolBasedTransport):
 
     def find_debug(self) -> "UdpTransport":
         host, port = self.device
-        return UdpTransport("{}:{}".format(host, port + 1))
+        return UdpTransport(f"{host}:{port + 1}")
 
     @classmethod
     def _try_path(cls, path: str) -> "UdpTransport":
         d = cls(path)
         try:
-            d.wait_until_ready(timeout=TRY_PATH_TIMEOUT)
-            return d
-        except Exception as e:
-            raise TransportException(
-                "No Trezor device found at address {}".format(d.get_path())
-            ) from e
+            d.open()
+            if d._ping():
+                return d
+            else:
+                raise TransportException(
+                    f"No Trezor device found at address {d.get_path()}"
+                )
+        finally:
+            d.close()
 
     @classmethod
-    def enumerate(cls) -> Iterable["UdpTransport"]:
-        default_path = "{}:{}".format(cls.DEFAULT_HOST, cls.DEFAULT_PORT)
+    def enumerate(
+        cls, _models: Optional[Iterable["TrezorModel"]] = None
+    ) -> Iterable["UdpTransport"]:
+        default_path = f"{cls.DEFAULT_HOST}:{cls.DEFAULT_PORT}"
         try:
             return [cls._try_path(default_path)]
         except TransportException:
@@ -78,18 +85,14 @@ class UdpTransport(ProtocolBasedTransport):
     @classmethod
     def find_by_path(cls, path: str, prefix_search: bool = False) -> "UdpTransport":
         if prefix_search:
-            return cast(UdpTransport, super().find_by_path(path, prefix_search))
-            # This is *technically* type-able: mark `find_by_path` as returning
-            # the same type from which `cls` comes from.
-            # Mypy can't handle that though, so here we are.
+            return super().find_by_path(path, prefix_search)
         else:
-            path = path.replace("{}:".format(cls.PATH_PREFIX), "")
+            path = path.replace(f"{cls.PATH_PREFIX}:", "")
             return cls._try_path(path)
 
     def wait_until_ready(self, timeout: float = 10) -> None:
         try:
             self.open()
-            self.socket.settimeout(0)
             start = time.monotonic()
             while True:
                 if self._ping():
@@ -127,7 +130,7 @@ class UdpTransport(ProtocolBasedTransport):
         assert self.socket is not None
         if len(chunk) != 64:
             raise TransportException("Unexpected data length")
-        LOG.log(DUMP_PACKETS, "sending packet: {}".format(chunk.hex()))
+        LOG.log(DUMP_PACKETS, f"sending packet: {chunk.hex()}")
         self.socket.sendall(chunk)
 
     def read_chunk(self) -> bytes:
@@ -138,7 +141,7 @@ class UdpTransport(ProtocolBasedTransport):
                 break
             except socket.timeout:
                 continue
-        LOG.log(DUMP_PACKETS, "received packet: {}".format(chunk.hex()))
+        LOG.log(DUMP_PACKETS, f"received packet: {chunk.hex()}")
         if len(chunk) != 64:
-            raise TransportException("Unexpected chunk size: %d" % len(chunk))
+            raise TransportException(f"Unexpected chunk size: {len(chunk)}")
         return bytearray(chunk)

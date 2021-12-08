@@ -4,11 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 1.10.3 [16th September 2021]
+
+### Added
+- Re-enabled Firo support  [#1767]
+
+### Changed
+- Emulator properly waits for IO without busy loop  [#1743]
+
+### Removed
+- Removed support for Lisk  [#1765]
+
+### Fixed
+- Add new rpId to Binance's FIDO definition.  [#1705]
+
+### Security
+- Stricter protobuf field handling in Stellar.
+
+
 ## 1.10.2 [14th July 2021]
 
 ### Removed
 - Removed support for Firo  [#1647]
 - Removed support for Hatch  [#1650]
+
+### Fixed
+- Allow non-standard paths used by Unchained Capital, Green Address and Casa.  [#1660]
+
+### Security
+- Ensure that all testnet coins use SLIP-44 coin type 1.
+- Restrict BIP-45 paths to Bitcoin and coins with strong replay protection.
+- Don't show addresses that have an unrecognized path.
+- Disable all testnet coins from accessing Bitcoin paths.
+- Restrict the BIP-32 path ranges of `account`, `change` and `address_index` fields.
+- Fix operation source account encoding in Stellar.
 
 
 ## 1.10.1 [9th June 2021]
@@ -400,3 +429,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 [#1627]: https://github.com/trezor/trezor-firmware/issues/1627
 [#1647]: https://github.com/trezor/trezor-firmware/issues/1647
 [#1650]: https://github.com/trezor/trezor-firmware/issues/1650
+[#1660]: https://github.com/trezor/trezor-firmware/issues/1660
+[#1705]: https://github.com/trezor/trezor-firmware/issues/1705
+[#1743]: https://github.com/trezor/trezor-firmware/issues/1743
+[#1765]: https://github.com/trezor/trezor-firmware/issues/1765
+[#1767]: https://github.com/trezor/trezor-firmware/issues/1767

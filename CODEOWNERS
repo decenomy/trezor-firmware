@@ -1,8 +1,6 @@
-/ci @tsusanka
+/common/defs @matejcik
 
-/common/defs @prusnak @matejcik
-
-/common/protob @tsusanka @matejcik
+/common/protob @matejcik
 
 /core/embed @prusnak
 
@@ -18,7 +16,7 @@
 
 /core/tools @matejcik
 
-/crypto @andrewkozlik @onvej-sl @prusnak
+/crypto @andrewkozlik @onvej-sl
 
 /crypto/gui @prusnak
 

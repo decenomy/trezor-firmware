@@ -5,9 +5,9 @@ from trezor.crypto.hashlib import sha256
 from trezor.messages import SignedIdentity
 from trezor.ui.layouts import confirm_sign_identity
 
-from apps.common import HARDENED, coininfo
+from apps.common import coininfo
 from apps.common.keychain import get_keychain
-from apps.common.paths import AlwaysMatchingSchema
+from apps.common.paths import HARDENED, AlwaysMatchingSchema
 
 if False:
     from trezor.messages import IdentityType, SignIdentity
@@ -124,8 +124,6 @@ def sign_challenge(
     sigtype: str | coininfo.CoinInfo,
     curve: str,
 ) -> bytes:
-    from trezor.crypto.hashlib import sha256
-
     if curve == "secp256k1":
         from trezor.crypto.curve import secp256k1
     elif curve == "nist256p1":
@@ -166,7 +164,7 @@ def sign_challenge(
 
     if curve == "ed25519":
         signature = b"\x00" + signature
-    elif sigtype == "gpg" or sigtype == "ssh":
+    elif sigtype in ("gpg", "ssh"):
         signature = b"\x00" + signature[1:]
 
     return signature

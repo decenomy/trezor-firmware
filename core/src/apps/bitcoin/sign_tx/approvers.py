@@ -27,7 +27,7 @@ if False:
 class Approver:
     def __init__(self, tx: SignTx, coin: CoinInfo) -> None:
         self.coin = coin
-        self.weight = tx_weight.TxWeightCalculator(tx.inputs_count, tx.outputs_count)
+        self.weight = tx_weight.TxWeightCalculator()
 
         # amounts in the current transaction
         self.total_in = 0  # sum of input amounts
@@ -257,6 +257,8 @@ class BasicApprover(Approver):
 
 
 class CoinJoinApprover(Approver):
+    MAX_OUTPUT_WEIGHT = const(4 * 43)
+
     def __init__(
         self, tx: SignTx, coin: CoinInfo, authorization: CoinJoinAuthorization
     ) -> None:
@@ -267,9 +269,7 @@ class CoinJoinApprover(Approver):
             raise wire.DataError("Coin name does not match authorization.")
 
         # Upper bound on the user's contribution to the weight of the transaction.
-        self.our_weight = tx_weight.TxWeightCalculator(
-            tx.inputs_count, tx.outputs_count
-        )
+        self.our_weight = tx_weight.TxWeightCalculator()
 
         # base for coordinator fee to be multiplied by fee_per_anonymity
         self.coordinator_fee_base = 0
@@ -321,9 +321,12 @@ class CoinJoinApprover(Approver):
         if mining_fee > (self.coin.maxfee_kb / 1000) * (self.weight.get_total() / 4):
             raise wire.ProcessError("Mining fee over threshold")
 
-        # The maximum mining fee that the user should be paying.
+        # The maximum mining fee that the user should be paying assuming that participants share
+        # the fees for the coordinator's output.
         our_max_mining_fee = (
-            mining_fee * self.our_weight.get_total() / self.weight.get_total()
+            mining_fee
+            * self.our_weight.get_total()
+            / (self.weight.get_total() - self.MAX_OUTPUT_WEIGHT)
         )
 
         # The coordinator fee for the user's outputs.

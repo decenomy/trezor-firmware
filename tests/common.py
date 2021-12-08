@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from trezorlib import btc, tools
-from trezorlib.messages import ButtonRequest, ButtonRequestType as B
+from trezorlib.messages import ButtonRequestType as B
 
 # fmt: off
 #                1      2     3    4      5      6      7     8      9    10    11    12
@@ -113,7 +113,7 @@ def generate_entropy(strength, internal_entropy, external_entropy):
     return entropy_stripped
 
 
-def recovery_enter_shares(debug, shares, groups=False):
+def recovery_enter_shares(debug, shares, groups=False, click_info=False):
     """Perform the recovery flow for a set of Shamir shares.
 
     For use in an input flow function.
@@ -137,7 +137,7 @@ def recovery_enter_shares(debug, shares, groups=False):
     yield
     debug.press_yes()
     # Enter shares
-    for index, share in enumerate(shares):
+    for share in shares:
         br = yield
         assert br.code == B.MnemonicInput
         # Enter mnemonic words
@@ -152,6 +152,18 @@ def recovery_enter_shares(debug, shares, groups=False):
         # Homescreen - continue
         # or Homescreen - confirm success
         yield
+
+        if click_info:
+            # Moving through the INFO button
+            info_button = (120, 220)
+            debug.wait_layout()
+            debug.click(info_button)
+            yield
+            debug.wait_layout()
+            debug.swipe_up()
+            debug.press_yes()
+
+        # Finishing with current share
         debug.press_yes()
 
 
@@ -188,15 +200,14 @@ def read_and_confirm_mnemonic(debug, choose_wrong=False):
         mnemonic = yield from read_and_confirm_mnemonic(client.debug)
     """
     mnemonic = []
-    while True:
-        br = yield
+    br = yield
+    for _ in range(br.pages - 1):
         mnemonic.extend(debug.read_reset_word().split())
-        if br.page_number < br.pages:
-            debug.swipe_up()
-        else:
-            # last page is confirmation
-            debug.press_yes()
-            break
+        debug.swipe_up(wait=True)
+
+    # last page is confirmation
+    mnemonic.extend(debug.read_reset_word().split())
+    debug.press_yes()
 
     # check share
     for _ in range(3):
@@ -208,15 +219,6 @@ def read_and_confirm_mnemonic(debug, choose_wrong=False):
             debug.input(mnemonic[index])
 
     return " ".join(mnemonic)
-
-
-def paging_responses(pages, code=None):
-    """Generate a sequence of ButtonRequests for paging through a specified number
-    of screens.
-    """
-    return [
-        ButtonRequest(code=code, page_number=i + 1, pages=pages) for i in range(pages)
-    ]
 
 
 def get_test_address(client):
